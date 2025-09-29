@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Document</title>
+</head>
+<body>
+    <header>
+        <h1>Mini-School</h1>
+        <nav>
+            <button onclick="showSection('articles')">Articles</button>
+            <button onclick="showSection('quiz')">Quizzes</button>
+            <button onclick="showSection('cards')">Cards</button>
+        </nav>
+        <button id="themeToggle" class="btn">Theme</button>
+    </header>
+    <main>
+        <section id="articles" class="active">
+            <h2 class="heading">Articles</h2>
+            <article>
+                <h3>What's an alorithm?</h3>
+                <p>algorithm - poshagovoe opisanie deistvii dlya resheniya zadachi.</p>
+            </article>
+            <article>
+                <h3>HTML Basics</h3>
+                <p>HTML-language of razmetka kotorii used to make website's structure</p>
+            </article>
+        </section>
+
+        <section id="quiz">
+            <h2 class="heading">Mini-test</h2>
+            <div class="progress">
+                <div id="quizBar" class="bar"></div>
+                <span id="quizCount" class="counter">0/0</span>
+                <span id="quizTimer" class="timer">00:00</span>
+            </div>
+            <div id="quiz-container"></div>
+            <div class="actions">
+                <button onclick="startQuiz()" class="button-bebebe">Start quiz!</button>
+                <button id="btnNext" class="btn" disabled>Next</button>
+                <span id="bestScore" class="muted"></span>
+            </div>
+        </section>
+
+        <section id="cards">
+            <h2 class="heading">cards with words</h2>
+            <div id="card-container"></div>
+            <button onclick="nextCard()" class="button-bebebe">Next Card</button>
+        </section>
+    </main>
+    <script src="script.js" defer></script>
+</body>
+</html>
