@@ -20,6 +20,19 @@ nav button{
     cursor: pointer;
     border-radius: 5px;
 }
+.themebtn{
+    margin: 5px;
+    padding: 8px 15px;
+    border: none;
+    background: white;
+    color: #4a90e2;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+.themebtn:hover{
+    background: #eee;
+}
 nav button:hover{
     background: #eee;
 }
@@ -72,6 +85,17 @@ article{
 .muted{
     color:var(--muted); 
     font-size: 14px;
+}
+.btnnext{
+    margin: 5px;
+    padding: 8px 15px;
+    border: none;
+    background: white;
+    color: #4a90e2;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 10px;
+    border: solid 3px #4a90e2;
 }
 .progress{
     display: flex;
