@@ -42,6 +42,17 @@
                 <button id="btnNext" class="btn btnnext" disabled>Next</button>
                 <span id="bestScore" class="muted"></span>
             </div>
+            <div class="actions" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                <input id="llmTopic" placeholder="Theme (for example, HTML/CSS/JS)"/>
+                <select id="llmCount"><option>5</option><option>8</option><option>10</option></select>
+                <select id="llmDiff">
+                    <option value="easy">easy</option>
+                    <option value="medium">medium</option>
+                    <option value="hard">hard</option>
+                </select>
+                <button id="btnLLM" class="btn">Generate locally (WebLLM)</button>
+                <span class="llmStatus" class="muted"></span>
+            </div>
         </section>
 
         <section id="cards">
