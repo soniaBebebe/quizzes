@@ -138,6 +138,14 @@ function flipCard(el){
     el.textContent=(el.textContent===card.front) ? card.back : card.front;
 }
 
+document.getElementById('btnLLM')?.addEventListener('click', ()=>{
+    const topic=(document.getElementById('llmTopic')?.value || 'web basics').trim();
+    const count=parseInt(document.getElementById('llmCount')?.value|| '5',10);
+    const diff=document.getElementById('llmDiff')?.value||'easy';
+    showSection('quiz');
+    generateLocalQuiz(topic,count,diff, 'ru');
+})
+
 document.addEventListener("DOMContentLoaded", () =>{
     nextCard();
 });
