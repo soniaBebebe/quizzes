@@ -103,3 +103,40 @@ article{
     gap: 10px;
     margin-bottom: 12px;
 }
+.countllm, .diffllm{
+    margin: 5px;
+    padding: 8px 15px;
+    border: none;
+    background: #4a90e2;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+.topicllm{
+    margin: 5px;
+    padding: 8px 15px;
+    background: #ffffff;
+    color: #4a90e2;
+    cursor: pointer;
+    border: solid, 3px, #4a90e2;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+.btngenerate{
+    margin: 5px;
+    font-size: 20px;
+    padding: 8px 15px;
+    background: #ffffff;
+    color: #4a90e2;
+    cursor: pointer;
+    border: solid, 3px, #4a90e2;
+    border-radius: 5px;
+    margin-top: 10px;
+    transition: 0.3s;
+}
+.btngenerate:hover{
+    background: rgb(248, 248, 248);
+    border: solid, 3px, #357ac8;
+    color: #357ac8;
+}

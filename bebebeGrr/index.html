@@ -43,14 +43,14 @@
                 <span id="bestScore" class="muted"></span>
             </div>
             <div class="actions" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-                <input id="llmTopic" placeholder="Theme (for example, HTML/CSS/JS)"/>
-                <select id="llmCount"><option>5</option><option>8</option><option>10</option></select>
-                <select id="llmDiff">
+                <input id="llmTopic" placeholder="Theme (for example, HTML/CSS/JS)" class="topicllm"/>
+                <select id="llmCount" class="countllm"><option>5</option><option>8</option><option>10</option></select>
+                <select id="llmDiff" class="diffllm">
                     <option value="easy">easy</option>
                     <option value="medium">medium</option>
                     <option value="hard">hard</option>
                 </select>
-                <button id="btnLLM" class="btn">Generate locally (WebLLM)</button>
+                <button id="btnLLM" class="btngenerate">Generate locally (WebLLM)</button>
                 <span id="llmStatus" class="muted"></span>
             </div>
         </section>
