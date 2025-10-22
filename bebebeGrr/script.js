@@ -1,9 +1,21 @@
 // ---------- надёжная автозагрузка WebLLM ----------
 const WEBLLM_URLS = [
-    "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.43/dist/web-llm.min.js",
-    "https://unpkg.com/@mlc-ai/web-llm@0.2.43/dist/web-llm.min.js",
-    "./web-llm.min.js" // локальный запасной вариант
-  ];
+  // локальные пути (если положишь файл рядом с index.html)
+  "/web-llm.min.js",
+  "./web-llm.min.js",
+
+  // jsDelivr / unpkg — несколько вариантов имён и версий
+  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
+  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
+  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
+
+  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
+  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
+  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
+
+  // как крайний вариант — ESM-конвертер (ниже дам «клей»)
+  "https://esm.run/@mlc-ai/web-llm@0.2.53",
+];
   
   function loadScript(src, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
