@@ -1,3 +1,4 @@
+import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.53";
 // ---------- надёжная автозагрузка WebLLM ----------
 const WEBLLM_URLS = [
     // 1) локальные (если положишь файл рядом с index.html)
@@ -89,7 +90,7 @@ const WEBLLM_URLS = [
     await ensureWebLLMScript();
     await waitForWebLLM();
   
-    webLLM = new window.mlc.WebLLM.ChatModule({
+    webLLM = new webllm.ChatModule({
       context_window_size: 2048,
       model_list: [LLM_MODEL, LLM_FALLBACK],
     });
@@ -228,4 +229,7 @@ const WEBLLM_URLS = [
     showSection("quiz");
     generateLocalQuiz(topic,count,diff,"ru");
   });
-  
+  window.showSection=showSection;
+  window.startQuiz=startQuiz;
+  window.nextCard=nextCard;
+  window.flipCard=flipCard;
