@@ -1,21 +1,21 @@
 // ---------- надёжная автозагрузка WebLLM ----------
 const WEBLLM_URLS = [
-  // локальные пути (если положишь файл рядом с index.html)
-  "/web-llm.min.js",
-  "./web-llm.min.js",
-
-  // jsDelivr / unpkg — несколько вариантов имён и версий
-  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
-  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
-  "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
-
-  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
-  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
-  "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
-
-  // как крайний вариант — ESM-конвертер (ниже дам «клей»)
-  "https://esm.run/@mlc-ai/web-llm@0.2.53",
-];
+    // 1) локальные (если положишь файл рядом с index.html)
+    "web-llm.min.js",        // ← относительный путь (самый надёжный для Live Server)
+    "./web-llm.min.js",
+  
+    // 2) CDN (несколько названий файлов в разных версиях)
+    "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
+    "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
+    "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
+  
+    "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/index.min.js",
+    "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/web-llm.min.js",
+    "https://unpkg.com/@mlc-ai/web-llm@0.2.53/dist/webllm.min.js",
+  
+    // 3) ESM как крайний вариант — потребует "клея" ниже
+    "https://esm.run/@mlc-ai/web-llm@0.2.53"
+  ];
   
   function loadScript(src, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
@@ -29,7 +29,7 @@ const WEBLLM_URLS = [
       s.src = src;
       s.async = true;
       s.onload = () => { if (!done) { done = true; clearTimeout(to); resolve(); } };
-      s.onerror = () => { if (!done) { done = true; clearTimeout(to); reject(new Error("load failed: " + src)); } };
+      s.onerror = () => { if (!done) { done = true; clearInterval(to); reject(new Error("load failed: " + src)); } };
       document.head.appendChild(s);
     });
   }
@@ -40,7 +40,16 @@ const WEBLLM_URLS = [
     for (const url of WEBLLM_URLS) {
       try {
         console.log("🔹 loading", url);
-        await loadScript(url);
+        // Особый случай: ESM
+        if (/^https:\/\/esm\.run\//.test(url)) {
+          const mod = await import(/* @vite-ignore */ url);
+          if (mod) {
+            window.mlc = window.mlc || {};
+            window.mlc.WebLLM = mod;
+          }
+        } else {
+          await loadScript(url);
+        }
         if (window.mlc?.WebLLM) return;
       } catch (e) {
         lastErr = e;
@@ -93,13 +102,13 @@ const WEBLLM_URLS = [
     const watchdog = (ms)=>new Promise((_,rej)=>setTimeout(()=>rej(new Error("download-timeout")),ms));
   
     try{
-      console.log("⏳ reload primary ", LLM_MODEL);
+      console.log("⏳ reload primary", LLM_MODEL);
       await Promise.race([
         webLLM.reload(LLM_MODEL,{progress_callback:onProgress}),
         watchdog(60000)
       ]);
     }catch(e1){
-      console.warn("Primary failed, fallback:",e1);
+      console.warn("Primary failed, fallback:", e1);
       setLLMStatus("Переключаюсь на лёгкую модель…");
       await Promise.race([
         webLLM.reload(LLM_FALLBACK,{progress_callback:onProgress}),
@@ -112,7 +121,7 @@ const WEBLLM_URLS = [
     return webLLM;
   }
   
-  // ---------- вспомогательные ----------
+  // ---------- утилиты ----------
   function extractJSON(text){
     const s=text.indexOf("{"), e=text.lastIndexOf("}");
     if(s===-1||e===-1||e<=s) throw new Error("No JSON block");
@@ -138,7 +147,8 @@ const WEBLLM_URLS = [
   
       const raw = reply?.choices?.[0]?.message?.content || "";
       let parsed;
-      try{parsed=JSON.parse(raw);}catch{parsed=JSON.parse(extractJSON(raw));}
+      try{ parsed = JSON.parse(raw); }
+      catch{ parsed = JSON.parse(extractJSON(raw)); }
   
       if(!Array.isArray(parsed?.questions)) throw new Error("Bad questions");
   
