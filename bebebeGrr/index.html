@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
   <title>Mini-School</title>
+  <style>
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+    .muted { opacity: .75; font-size: .9em }
+    .cfg input, .cfg select { padding:6px 8px }
+    .cfg .inline { display:flex; gap:6px; flex-wrap:wrap; align-items:center }
+    .cfg .sep { width:100%; height:1px; background:var(--border,#ddd); margin:6px 0 }
+    .warn { color:#b00; font-weight:600 }
+    .ok { color:#0a7c2f; font-weight:600 }
+    .cardscontainer .card { cursor:pointer }
+    .progress{ display:flex; gap:8px; align-items:center }
+    .bar{ height:6px; background:#6aa3; width:0 }
+    .counter,.timer{ font-family:monospace }
+    .btn, .button-bebebe, button { cursor:pointer }
+    .topicllm, .countllm, .diffllm { padding:6px 8px }
+  </style>
 </head>
 <body>
   <header>
@@ -32,21 +47,54 @@
 
     <section id="quiz">
       <h2 class="heading">Mini-test</h2>
+
+      <!-- Блок выбора провайдера ИИ -->
+      <div class="cfg" style="margin:10px 0 16px;">
+        <div class="row inline">
+          <label>Provider:</label>
+          <select id="aiProvider">
+            <option value="openai">OpenAI-compatible</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+
+          <span id="provTip" class="muted">Use API Base & Key for OpenAI-compatible. For Ollama — just run ollama locally.</span>
+        </div>
+
+        <div id="openaiCfg" class="row" style="margin-top:8px;">
+          <input id="apiBase" placeholder="API Base (e.g. https://api.openai.com/v1)" size="36" />
+          <input id="apiKey" placeholder="API Key (starts with 'sk-...' or provider key)" size="28" />
+          <input id="apiModel" placeholder="Model (e.g. gpt-4o-mini / deepseek-chat)" size="22" />
+          <button id="saveCfg">Save</button>
+        </div>
+
+        <div id="ollamaCfg" class="row" style="margin-top:8px; display:none;">
+          <input id="ollamaBase" placeholder="Ollama Base (http://localhost:11434)" size="36" />
+          <input id="ollamaModel" placeholder="Model (e.g. qwen2.5:0.5b | llama3.1:8b)" size="28" />
+          <button id="saveOllamaCfg">Save</button>
+        </div>
+
+        <div class="sep"></div>
+        <div class="muted">
+          Совет: чтобы не светить ключ в коде, можно указать прокси-бэкенд (OpenAI-совместимый) в поле <b>API Base</b>,
+          а ключ хранить там. На чистом фронтенде ключ будет виден пользователю.
+        </div>
+      </div>
+
       <div class="progress">
         <div id="quizBar" class="bar"></div>
         <span id="quizCount" class="counter">0/0</span>
         <span id="quizTimer" class="timer">00:00</span>
       </div>
 
-      <div id="quiz-container"></div>
+      <div id="quiz-container" style="margin-top:10px;"></div>
 
-      <div class="actions">
+      <div class="actions" style="margin-top:10px;">
         <button onclick="startQuiz()" class="button-bebebe">Start quiz!</button>
         <button id="btnNext" class="btn btnnext" disabled>Next</button>
         <span id="bestScore" class="muted"></span>
       </div>
 
-      <div class="actions" style="margin-top:40px; display:flex; gap:6px; flex-wrap:wrap;">
+      <div class="actions" style="margin-top:24px; display:flex; gap:6px; flex-wrap:wrap;">
         <input id="llmTopic" placeholder="Theme (e.g. HTML/CSS/JS)" class="topicllm" />
         <select id="llmCount" class="countllm"><option>5</option><option>8</option><option>10</option></select>
         <select id="llmDiff" class="diffllm">
@@ -54,7 +102,7 @@
           <option value="medium">medium</option>
           <option value="hard">hard</option>
         </select>
-        <button id="btnLLM" class="btngenerate">Generate locally (WebLLM)</button>
+        <button id="btnLLM" class="btngenerate">Generate via AI</button>
         <span id="llmStatus" class="muted llmstatusupdates"></span>
       </div>
     </section>
@@ -66,7 +114,6 @@
     </section>
   </main>
 
-  <!-- НЕ подключаем web-llm здесь; его загрузит сам script.js -->
   <script src="script.js" type="module"></script>
 </body>
 </html>
