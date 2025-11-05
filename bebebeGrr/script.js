@@ -1,49 +1,75 @@
-// ---------- провайдеры ИИ: OpenAI-совместимый / Ollama ----------
-const $ = sel => document.querySelector(sel);
+// ========================= Mini-School (Ollama-only) =========================
+// Требуется: запущенный ollama serve с CORS (см. подсказку в index.html)
+// Безопасный вывод, таймауты, бэкофф, строгий JSON и fallback-набор
+// ============================================================================
+
+/* ----------------------------- utils/helpers ----------------------------- */
+const $  = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 
+function setSafeText(el, text) {
+  if (!el) return;
+  el.textContent = String(text ?? "");
+}
+
+function stripCodeFences(text) {
+  // удаляем ```json ... ```
+  return String(text).replace(/```[\s\S]*?```/g, m => m.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+}
+
+function safeParseJSON(text){
+  const t = stripCodeFences(text).trim();
+  try { return JSON.parse(t); } catch {}
+  const s = t.indexOf("{"), e = t.lastIndexOf("}");
+  if (s !== -1 && e !== -1 && e > s) {
+    const sliced = t.slice(s, e + 1);
+    try { return JSON.parse(sliced); } catch {}
+  }
+  throw new Error("Bad JSON from model");
+}
+
+async function fetchWithTimeout(url, options = {}, ms = 30000) {
+  const c = new AbortController();
+  const t = setTimeout(()=>c.abort(new Error("Request timeout")), ms);
+  try {
+    const res = await fetch(url, { ...options, signal: c.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function withBackoff(fn, { retries = 2, baseMs = 600 } = {}) {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = err?.status || err?.response?.status;
+      const retriable = status ? [429, 500, 502, 503, 504].includes(status) : true;
+      if (attempt >= retries || !retriable) throw err;
+      const delay = baseMs * Math.pow(2, attempt) + Math.random() * 100;
+      await new Promise(r => setTimeout(r, delay));
+      attempt++;
+    }
+  }
+}
+
+/* ------------------------------- storage LS ------------------------------ */
 const LS = {
-  get k() { return localStorage.getItem("AI_KEY") || ""; },
-  set k(v) { localStorage.setItem("AI_KEY", v || ""); },
-
-  get b() { return localStorage.getItem("AI_BASE") || "https://api.openai.com/v1"; },
-  set b(v) { localStorage.setItem("AI_BASE", v || ""); },
-
-  get m() { return localStorage.getItem("AI_MODEL") || "gpt-4o-mini"; },
-  set m(v) { localStorage.setItem("AI_MODEL", v || ""); },
-
   get ob() { return localStorage.getItem("OLLAMA_BASE") || "http://localhost:11434"; },
   set ob(v) { localStorage.setItem("OLLAMA_BASE", v || ""); },
 
   get om() { return localStorage.getItem("OLLAMA_MODEL") || "qwen2.5:0.5b"; },
   set om(v) { localStorage.setItem("OLLAMA_MODEL", v || ""); },
-
-  get p() { return localStorage.getItem("AI_PROVIDER") || "openai"; },
-  set p(v) { localStorage.setItem("AI_PROVIDER", v || "openai"); },
 };
 
-function initCfgUI(){
-  $("#aiProvider").value = LS.p;
-  $("#apiBase").value    = LS.b;
-  $("#apiKey").value     = LS.k;
-  $("#apiModel").value   = LS.m;
+/* ------------------------------- UI config ------------------------------- */
+function setLLMStatus(t){ const el=$("#llmStatus"); if(el) el.textContent=t; }
 
+function initCfgUI(){
   $("#ollamaBase").value  = LS.ob;
   $("#ollamaModel").value = LS.om;
-
-  toggleProv(LS.p);
-
-  $("#aiProvider").addEventListener("change", e=>{
-    LS.p = e.target.value;
-    toggleProv(LS.p);
-  });
-
-  $("#saveCfg").addEventListener("click", ()=>{
-    LS.b = $("#apiBase").value.trim();
-    LS.k = $("#apiKey").value.trim();
-    LS.m = $("#apiModel").value.trim();
-    setLLMStatus("Saved OpenAI-compatible settings ✅");
-  });
 
   $("#saveOllamaCfg").addEventListener("click", ()=>{
     LS.ob = $("#ollamaBase").value.trim();
@@ -52,39 +78,57 @@ function initCfgUI(){
   });
 }
 
-function toggleProv(p){
-  $("#openaiCfg").style.display = p==="openai" ? "flex" : "none";
-  $("#ollamaCfg").style.display = p==="ollama" ? "flex" : "none";
-  $("#provTip").textContent = p==="openai"
-    ? "Use API Base & Key for any OpenAI-compatible endpoint. Example: https://api.openai.com/v1"
-    : "Run: `ollama run qwen2.5:0.5b` (or your model). Base defaults to http://localhost:11434";
+/* --------------------------------- LLM ---------------------------------- */
+async function callOllamaChat(base, model, userPrompt){
+  if(!base)  throw new Error("Ollama Base is empty");
+  if(!model) throw new Error("Ollama model is empty");
+
+  const url = base.replace(/\/+$/,"") + "/api/chat";
+  const headers = { "Content-Type":"application/json" };
+  // Чуть строже детерминизм для JSON
+  const body = {
+    model,
+    messages:[{ role:"user", content:userPrompt }],
+    stream:false,
+    options:{ temperature:0.2, top_p:0.9, num_ctx:4096 }
+  };
+
+  const exec = async () => {
+    const res = await fetchWithTimeout(url, { method:"POST", headers, body: JSON.stringify(body) }, 30000);
+    if(!res.ok){
+      const t = await res.text().catch(()=>res.statusText);
+      const err = new Error(`Ollama error ${res.status}: ${t}`);
+      err.status = res.status;
+      throw err;
+    }
+    const json = await res.json();
+    const content = json?.message?.content;
+    return content || "";
+  };
+
+  return withBackoff(exec, { retries: 2, baseMs: 700 });
 }
 
-function setLLMStatus(t){ const el=$("#llmStatus"); if(el) el.textContent=t; }
-
-// ---------- генерация квиза через выбранный провайдер ----------
+/* -------------------------- quiz generation flow ------------------------- */
 async function generateAIQuiz(topic,count=5,difficulty="easy",lang="ru"){
+  const c = Math.max(2, Math.min(Number(count)||5, 10)); // 2..10
+  const diff = ["easy","medium","hard"].includes(difficulty) ? difficulty : "easy";
+
   const prompt = `
-Generate ${count} short, clear multiple-choice questions about "${topic}".
-Difficulty: ${difficulty}. Language: ${lang}.
+Generate ${c} short, clear multiple-choice questions about "${topic}".
+Difficulty: ${diff}. Language: ${lang}.
 Answer STRICTLY in JSON:
 {"questions":[{"q":"...", "a":["A","B","C"], "correct":0}]}
 No comments, no markdown, no extra text.
 `.trim();
 
   try{
-    setLLMStatus("Запрос к модели…");
-    const provider = LS.p;
-    let raw = "";
+    setLLMStatus("Запрос к Ollama…");
+    $("#btnLLM")?.setAttribute("disabled","true");
 
-    if (provider === "openai") {
-      raw = await callOpenAIChat(LS.b, LS.k, LS.m, prompt);
-    } else {
-      raw = await callOllamaChat(LS.ob, LS.om, prompt);
-    }
-
+    const raw = await callOllamaChat(LS.ob, LS.om, prompt);
     const data = safeParseJSON(raw);
-    const arr = normalizeQuestions(data?.questions);
+    const arr  = normalizeQuestions(data?.questions);
     if(!arr.length) throw new Error("Empty normalized");
 
     useQuestions(arr);
@@ -92,84 +136,31 @@ No comments, no markdown, no extra text.
     setLLMStatus(`Сгенерировано: ${arr.length} вопросов ✅`);
   }catch(err){
     console.error(err);
-    setLLMStatus("Не удалось сгенерировать. Показан запасной набор.");
-    alert("Ошибка генерации. Проверь настройки/ключ/доступ. Падём на запасной набор.");
-    // фолбэк — встроенные вопросы
+    setLLMStatus(`Ошибка: ${err?.message || err}. Показан запасной набор.`);
+    alert(`Ошибка генерации:\n${err?.message || err}\nПоказываю запасной набор.`);
     useQuestions(defaultQuestions);
     startQuiz();
+  } finally {
+    $("#btnLLM")?.removeAttribute("disabled");
   }
-}
-
-function safeParseJSON(text){
-  try { return JSON.parse(text); } catch {}
-  // пытаемся вырезать блок JSON
-  const s = text.indexOf("{"), e = text.lastIndexOf("}");
-  if (s !== -1 && e !== -1 && e > s) {
-    try { return JSON.parse(text.slice(s, e+1)); } catch {}
-  }
-  throw new Error("Bad JSON from model");
 }
 
 function normalizeQuestions(arr){
   if(!Array.isArray(arr)) return [];
-  return arr.map(q=>({
-    q: String(q.q||"").slice(0,500),
-    a: Array.isArray(q.a) ? q.a.map(s=>String(s).slice(0,200)).slice(0,5) : [],
-    correct: Number.isInteger(q.correct) ? q.correct : 0
-  })).filter(x=>x.q && x.a.length>=2);
+  return arr.map(q=>{
+    const a = Array.isArray(q.a) ? q.a.map(s=>String(s).slice(0,200)).slice(0,5) : [];
+    let idx = Number.isInteger(q.correct) ? q.correct : 0;
+    if (a.length === 0) idx = 0;
+    else idx = Math.max(0, Math.min(idx, a.length - 1));
+    return {
+      q: String(q.q||"").slice(0,500),
+      a,
+      correct: idx
+    };
+  }).filter(x=>x.q && x.a.length>=2);
 }
 
-// --- OpenAI-совместимый endpoint (/v1/chat/completions) ---
-async function callOpenAIChat(base, apiKey, model, userPrompt){
-  if(!base) throw new Error("API Base is empty");
-  if(!model) throw new Error("Model is empty");
-
-  const url = base.replace(/\/+$/,"") + "/chat/completions";
-  const headers = { "Content-Type":"application/json" };
-  if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
-
-  const body = {
-    model,
-    temperature: 0.4,
-    messages: [{ role:"user", content:userPrompt }]
-  };
-
-  const res = await fetch(url, { method:"POST", headers, body: JSON.stringify(body) });
-  if(!res.ok){
-    const t = await res.text().catch(()=>res.statusText);
-    throw new Error(`OpenAI-compatible error ${res.status}: ${t}`);
-  }
-  const json = await res.json();
-  return json?.choices?.[0]?.message?.content || "";
-}
-
-// --- Ollama (/api/chat) ---
-async function callOllamaChat(base, model, userPrompt){
-  if(!base) throw new Error("Ollama Base is empty");
-  if(!model) throw new Error("Ollama model is empty");
-
-  const url = base.replace(/\/+$/,"") + "/api/chat";
-  const headers = { "Content-Type":"application/json" };
-  const body = {
-    model,
-    messages:[{ role:"user", content:userPrompt }],
-    stream:false,
-    options:{ temperature:0.4 }
-  };
-
-  const res = await fetch(url, { method:"POST", headers, body: JSON.stringify(body) });
-  if(!res.ok){
-    const t = await res.text().catch(()=>res.statusText);
-    throw new Error(`Ollama error ${res.status}: ${t}`);
-  }
-  const json = await res.json();
-  // Ollama может вернуть либо message.content, либо массив частей
-  const content = json?.message?.content
-    || (Array.isArray(json?.message?.tool_calls) ? "" : "");
-  return content || "";
-}
-
-// ---------- старая логика секций/квиза/карточек ----------
+/* ---------------------------- sections / quiz ---------------------------- */
 function showSection(id){
   $$("section").forEach(s=>s.classList.remove("active"));
   document.getElementById(id)?.classList.add("active");
@@ -184,8 +175,18 @@ let quizQuestions = [
 const defaultQuestions = structuredClone(quizQuestions);
 let quizIndex = 0, score = 0;
 
-function useQuestions(arr){ if(Array.isArray(arr)&&arr.length) quizQuestions=arr; quizIndex=0; score=0; updateProgress(); }
-function startQuiz(){ quizIndex=0; score=0; $("#btnNext").disabled = true; showQuestion(); updateProgress(); }
+function useQuestions(arr){
+  if(Array.isArray(arr)&&arr.length) quizQuestions = arr;
+  quizIndex = 0; score = 0; updateProgress();
+}
+
+function startQuiz(){
+  quizIndex = 0; score = 0;
+  $("#btnNext").disabled = true;
+  showQuestion();
+  updateProgress();
+}
+
 function updateProgress(){
   const total = quizQuestions.length;
   const bar = $("#quizBar");
@@ -198,21 +199,34 @@ function updateProgress(){
 function showQuestion(){
   const c=$("#quiz-container");
   if(quizIndex>=quizQuestions.length){
-    c.innerHTML = `<p>Your result is: <b>${score}</b> / ${quizQuestions.length}</p>`;
+    c.innerHTML = "";
+    const p = document.createElement("p");
+    p.innerHTML = `Your result is: <b>${score}</b> / ${quizQuestions.length}`;
+    c.appendChild(p);
     $("#btnNext").disabled = true;
+    // best score
+    const best = Number(localStorage.getItem("BEST_SCORE")||0);
+    const curr = Math.max(best, score);
+    localStorage.setItem("BEST_SCORE", String(curr));
+    setSafeText($("#bestScore"), `Best: ${curr}/${quizQuestions.length}`);
     return;
   }
   const q=quizQuestions[quizIndex];
-  c.innerHTML=`<h3>${q.q}</h3>`;
+
+  c.innerHTML = "";
+  const h = document.createElement("h3");
+  setSafeText(h, q.q);
+  c.appendChild(h);
+
   q.a.forEach((ans,i)=>{
     const b=document.createElement("button");
-    b.textContent=ans;
-    b.onclick=()=>{
+    setSafeText(b, ans);
+    b.type = "button";
+    b.addEventListener("click", ()=>{
       if(i===q.correct) score++;
       $("#btnNext").disabled = false;
-      // блокируем повторный клик по вариантам
       $$("#quiz-container button").forEach(btn=>btn.disabled=true);
-    };
+    });
     c.appendChild(b);
   });
 }
@@ -224,13 +238,16 @@ $("#btnNext").addEventListener("click", ()=>{
   updateProgress();
 });
 
-// ---------- карточки ----------
+$("#btnStart").addEventListener("click", ()=> startQuiz());
+
+/* ------------------------------- flashcards ------------------------------ */
 const cards=[
   {front:"HTML",back:"Language of markup (structure)"},
   {front:"CSS",back:"Cascade style sheets (presentation)"},
   {front:"JS",back:"Programming language for interactivity"},
 ];
 let cardIndex=0;
+
 function nextCard(){
   const c=$("#card-container");
   const card=cards[cardIndex];
@@ -245,10 +262,15 @@ function flipCard(el){
 window.nextCard=nextCard;
 window.flipCard=flipCard;
 
-// ---------- init ----------
+/* --------------------------------- init --------------------------------- */
 document.addEventListener("DOMContentLoaded",()=>{
   initCfgUI();
   nextCard();
+
+  // best score init
+  const best = Number(localStorage.getItem("BEST_SCORE")||0);
+  if (!Number.isNaN(best) && best > 0) setSafeText($("#bestScore"), `Best: ${best}`);
+
   $("#btnLLM")?.addEventListener("click",()=>{
     const topic=($("#llmTopic")?.value||"web basics").trim();
     const count=parseInt($("#llmCount")?.value||"5",10);
@@ -256,9 +278,17 @@ document.addEventListener("DOMContentLoaded",()=>{
     showSection("quiz");
     generateAIQuiz(topic,count,diff,"ru");
   });
-});
 
-// (опционально) тема
-$("#themeToggle")?.addEventListener("click", ()=>{
-  document.documentElement.classList.toggle("dark");
+  // тема с сохранением
+  const THEME_KEY = "THEME_MODE";
+  const applyTheme = (mode) => {
+    document.documentElement.classList.toggle("dark", mode === "dark");
+  };
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+
+  $("#themeToggle")?.addEventListener("click", ()=>{
+    const mode = document.documentElement.classList.contains("dark") ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, mode);
+    applyTheme(mode);
+  });
 });
